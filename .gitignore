@@ -1,0 +1,20 @@
+﻿# Binaries / build
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/slot10_50_100
+/bin/
+/dist/
+/out/
+*.test
+*.coverprofile
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
