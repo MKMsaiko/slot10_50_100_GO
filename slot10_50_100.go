@@ -9,21 +9,20 @@ Scatter出現在3-5轉輪，Wild出現在2-5轉輪，可替代除S外之任意�
 該遊戲有兩個賠率表，表示皆為純倍率
 線獎由左到右，同符號達3、4、5連線且符合線圖，即有贏分
 
-程式大致流程：
+程式流程：
+依處理器thread數 → 分數個worker → 各自做以下1-7 → 彙整輸出
 
 1.轉窗（主遊戲）
 
 	呼叫：spinWindow(rng, reelsMG, &w)
-	對 5 軸各抽停點，把連續 3 格寫到重用的 window5x3 w.c[5][3]。
+	對 5 軸各抽停點，寫進 window5x3 w.c[5][3]。
 
 2.算主遊戲線獎
 
 	呼叫：evalAllLines(&w, &payMG)
 	→ 走 25 條線，逐條呼叫linePay(...) 加總。
 	linePay：
-		自左找第一個非 W/非 S 的目標符號 target。
-		往右延伸：W 可代、遇 S 斷；湊到 3/4/5 連就回 pay[target][len-3]。
-		乘上押注：mgLine := (倍數) * betPerLine。
+		湊到 3/4/5 連就回 pay[target][len-3]。
 
 3.判 Scatter、決定是否進 FG
 
@@ -32,13 +31,10 @@ Scatter出現在3-5轉輪，Wild出現在2-5轉輪，可替代除S外之任意�
 	>=3：進 FG，記 triggerCount 與倍率：
 		呼叫：fgMulByScatter(s) → 3S/4S/5S → ×10/×50/×100。
 
-4.跑「一整串」FG（初始 5 轉；3+S 再加 5 轉，無上限）
+4.跑「一整串」FG
 
 	呼叫：playFG(rng, &w)，回傳：
-		spins：這串實際跑了幾轉
-		base：未乘倍率的 FG 總和（已乘 betPerLine）
-		retri：再觸發次數
-		zeroBatches/totalBatches：每 5 轉為一批的「全空批次」統計
+		spins,base,retri,zeroBatches...
 
 	playFG 的每一轉內部其實就是：
 		spinWindow(rng, reelsFG, &w)（換 FG 輪帶）
@@ -48,13 +44,10 @@ Scatter出現在3-5轉輪，Wild出現在2-5轉輪，可替代除S外之任意�
 
 5.把整串 FG 派彩加權、累計
 
-	fgWin := fgBase * mul
-	本把總和：spinTotal := mgLine + fgWin
-	累計：mainLineWinSum += mgLine、freeGameWinSum += fgWin、totalFGSpins += spins、retriggerCount += retri…
+	fgWin := fgBase * mul, spinTotal := mgLine + fgWin...
 
 6.更新單把峰值與分層
 
-	ratio := spinTotal / perSpinBet
 	依門檻記 big/mega/super/holy/jumbo/jojo；更新 maxSingleSpin。
 
 7.進度心跳（降低同步成本）
@@ -201,6 +194,8 @@ func symCode(s string) uint8 {
 		panic("unknown symbol: " + s)
 	}
 }
+
+// 輪帶轉換 字串 → uint8（只在啟動時做一次）
 func packReels(src [][]string) [][]uint8 {
 	dst := make([][]uint8, len(src))
 	for i := range src {
@@ -215,7 +210,7 @@ func packReels(src [][]string) [][]uint8 {
 var reelsMG, reelsFG [][]uint8
 
 /**************
- * 轉窗（重用 buffer）
+ * 轉窗（重用 每把覆寫 各worker各自持有）
  **************/
 type window5x3 struct{ c [5][3]uint8 }
 
@@ -263,6 +258,7 @@ func linePay(w *window5x3, line [5]uint8, pay *[NumSymbols][3]float64) float64 {
 	return 0
 }
 
+// 線獎加總
 func evalAllLines(w *window5x3, pay *[NumSymbols][3]float64) float64 {
 	sum := 0.0
 	for i := 0; i < numLines; i++ {
@@ -302,7 +298,7 @@ func fgMulByScatter(s int) float64 {
 
 /**************
  * 一整串 FG
- **************/
+ **************/ //spins：FG實際跑了幾轉, base：未乘倍率的FG總派彩, retri：再觸發次數, zeroBatches：「全空批次」數, totalBatches：跑了多少個5轉批次
 func playFG(rng *rand.Rand, w *window5x3) (spins int, base float64, retri int, zeroBatches int, totalBatches int) {
 	queue := 5
 	batchSpin := 0
@@ -342,7 +338,7 @@ func playFG(rng *rand.Rand, w *window5x3) (spins int, base float64, retri int, z
 }
 
 /**************
- * 統計
+ * 自訂統計項目
  **************/
 type Stats struct {
 	mainLineWinSum float64
@@ -350,8 +346,8 @@ type Stats struct {
 	triggerCount   int64
 	retriggerCount int64
 	totalFGSpins   int64
-	maxSingleSpin  float64
-	deadSpins      int64
+	maxSingleSpin  float64 // 最高單把贏分
+	deadSpins      int64   // 空轉數
 
 	trigX10  int64
 	trigX50  int64
@@ -489,7 +485,7 @@ func worker(_ int, spins int64, out *Stats, seed int64) {
 }
 
 /**************
- * 輔助：格式化「約每 N 轉一次」
+ * 輔助輸出：「約每 N 轉一次」
  **************/
 func everyStr(totalSpins, count int64) string {
 	if count <= 0 {
@@ -515,22 +511,22 @@ func main() {
 	totalBet := float64(numSpins) * float64(numLines) * betPerLine
 	perSpinBet := float64(numLines) * betPerLine
 
-	// 並行
+	// 並行 : 每個worker皆把各自轉數跑完(即總轉數完成)才做輸出
 	var wg sync.WaitGroup
-	wg.Add(numWorkers)
-	stats := make([]Stats, numWorkers)
+	wg.Add(numWorkers)                 // 會有 numWorkers 個工作要等
+	stats := make([]Stats, numWorkers) // 建一個長度為 numWorkers 的切片,讓各worker把統計結果寫進各自的（&stats[i]）
 	chunk := numSpins / int64(numWorkers)
 	rem := numSpins % int64(numWorkers)
 
 	baseSeed := time.Now().UnixNano()
-	for w := 0; w < numWorkers; w++ {
+	for w := 0; w < numWorkers; w++ { // 攤分總spin
 		spins := chunk
 		if int64(w) < rem {
 			spins++
 		}
 		go func(i int, n int64) {
 			defer wg.Done()
-			worker(i, n, &stats[i], baseSeed+int64(i)*1337)
+			worker(i, n, &stats[i], baseSeed+int64(i)*1337) // i:worker ID,n:該worker應跑轉數,各worker的RNG種子不同，避免序列重疊
 		}(w, spins)
 	}
 	wg.Wait()
