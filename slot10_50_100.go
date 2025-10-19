@@ -71,7 +71,7 @@ import (
  * 參數
  **************/
 var (
-	numSpins   int64   = 10000000000      // 轉數
+	numSpins   int64   = 1000000000       // 轉數(預設為10億轉)
 	betPerLine float64 = 40.0             // 線注
 	numWorkers         = runtime.NumCPU() // total threads
 
@@ -298,7 +298,7 @@ func fgMulByScatter(s int) float64 {
 
 /**************
  * 一整串 FG
- **************/ //spins：FG實際跑了幾轉, base：未乘倍率的FG總派彩, retri：再觸發次數, zeroBatches：「全空批次」數, totalBatches：跑了多少個5轉批次
+ **************/ //  spins：FG實際跑了幾轉, base：未乘倍率的FG總派彩, retri：再觸發次數, zeroBatches：「全空批次」數, totalBatches：跑了多少個5轉批次
 func playFG(rng *rand.Rand, w *window5x3) (spins int, base float64, retri int, zeroBatches int, totalBatches int) {
 	queue := 5
 	batchSpin := 0
