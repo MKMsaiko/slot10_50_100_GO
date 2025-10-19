@@ -1,11 +1,26 @@
 ﻿# slot10_50_100
 
-Go slot simulator demo.
+slot simulator demo：
+
+遊戲數據模擬器，輸出各項統計資料。
+
+## 環境需求
+ Go 1.22+
 
 ## Build
 go build -o slot10_50_100.exe .
 
 ## Run (example)
-.\slot10_50_100.exe
-# 或直接
-go run .\slot10_50_100.go
+.\slot10_50_100.exe 或 go run .\slot10_50_100.go
+
+
+## 模擬器輸出示意圖
+<p align="center">
+  <img src="image/10_50_100Sim.png" alt="模擬輸出截圖">
+  <br><sub>RTP、獎項分布、峰值摘要等</sub>
+</p>
+
+<p align="center">
+  <img src="image/10_50_100Stat.png" alt="模擬輸出截圖">
+  <br><sub>與Excel試算之結果驗證</sub>
+</p>
