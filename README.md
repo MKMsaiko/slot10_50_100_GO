@@ -5,7 +5,7 @@ slot simulator demo：
 遊戲數據模擬器，輸出各項統計資料。
 
 ## 環境需求
- Go 1.22+
+ Go 1.24+
 
 ## Build
 go build -o slot10_50_100.exe .
