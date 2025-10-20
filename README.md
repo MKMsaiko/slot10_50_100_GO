@@ -1,17 +1,23 @@
-﻿# slot10_50_100
+﻿# slot10_50_100_GO
 
-slot simulator demo：
+- Slot simulator demo
 
-遊戲數據模擬器，輸出各項統計資料。
+- 模擬遊戲數據，輸出各項統計資料。
+
+- (遊戲規則與程式流程請見程式檔頭註解。)
 
 ## 環境需求
- Go 1.24+
+- Go 1.24+
+
+## 開發工具(建議)
+- Visual Studio Code
+  - 擴充：Go (golang.go)
 
 ## Build
-go build -o slot10_50_100.exe .
+- go build -o slot10_50_100.exe .
 
 ## Run (example)
-.\slot10_50_100.exe 或 go run .\slot10_50_100.go
+- .\slot10_50_100.exe 或 go run .\slot10_50_100.go
 
 
 ## 模擬器輸出示意圖
