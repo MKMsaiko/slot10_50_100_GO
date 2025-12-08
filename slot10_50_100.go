@@ -72,7 +72,7 @@ import (
  **************/
 var (
 	numSpins   int64   = 1000000000       // 轉數(預設為10億轉)
-	betPerLine float64 = 40.0             // 線注
+	betPerLine float64 = 0.04             // 線注
 	numWorkers         = runtime.NumCPU() // total threads
 
 	excelRTP float64 = 0.965984 // Excel 試算之 RTP，不比較則設負值
@@ -353,12 +353,13 @@ type Stats struct {
 	trigX50  int64
 	trigX100 int64
 
-	bigWins   int64 // ≥20×bet
-	megaWins  int64 // ≥60×bet
-	superWins int64 // ≥100×bet
-	holyWins  int64 // ≥300×bet
-	jumboWins int64 // ≥500×bet
-	jojoWins  int64 // ≥1000×bet
+	bigWins   int64     // ≥20×bet
+	megaWins  int64     // ≥60×bet
+	superWins int64     // ≥100×bet
+	holyWins  int64     // ≥300×bet
+	jumboWins int64     // ≥500×bet
+	jojoWins  int64     // ≥1000×bet
+	hiWinBins [19]int64 // ≥1000×bet 詳細
 
 	fgZeroBatches  int64
 	fgTotalBatches int64
@@ -369,6 +370,10 @@ type Stats struct {
 	rtpSum   float64
 	rtpSumSq float64
 	nSpins   int64
+}
+
+var highBinEdges = []float64{
+	1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000, 20000, 25000, 30000, 40000,
 }
 
 /**************
@@ -465,6 +470,17 @@ func worker(_ int, spins int64, out *Stats, seed int64) {
 			local.bigWins++
 		}
 
+		//x1000 以上更細的互斥分層
+		if ratio >= highBinEdges[0] {
+			// 從最大門檻往回找，找到第一個符合 ratio >= edge 的 bin
+			for i := len(highBinEdges) - 1; i >= 0; i-- {
+				if ratio >= highBinEdges[i] {
+					local.hiWinBins[i]++
+					break
+				}
+			}
+		}
+
 		// per-spin RTP 的一階、二階統計
 		local.rtpSum += ratio
 		local.rtpSumSq += ratio * ratio
@@ -555,6 +571,10 @@ func main() {
 		total.jumboWins += s.jumboWins
 		total.jojoWins += s.jojoWins
 
+		for i := range total.hiWinBins {
+			total.hiWinBins[i] += s.hiWinBins[i]
+		}
+
 		total.fgZeroBatches += s.fgZeroBatches
 		total.fgTotalBatches += s.fgTotalBatches
 
@@ -580,7 +600,7 @@ func main() {
 	fmt.Printf("總 RTP                                : %.6f\n", rtpTotal)
 
 	// 觸發與再觸發
-	fmt.Printf("免費遊戲觸發次數                      : %d (觸發率 %.6f) %s\n",
+	fmt.Printf("免費遊戲觸發次數                       : %d (觸發率 %.6f) %s\n",
 		total.triggerCount, float64(total.triggerCount)/float64(numSpins), everyStr(numSpins, total.triggerCount))
 	fmt.Printf("  └×10  次數 (3S)                     : %d %s\n", total.trigX10, everyStr(numSpins, total.trigX10))
 	fmt.Printf("  └×50  次數 (4S)                     : %d %s\n", total.trigX50, everyStr(numSpins, total.trigX50))
@@ -590,14 +610,24 @@ func main() {
 	if total.triggerCount > 0 {
 		retriRate = float64(total.retriggerCount) / float64(total.totalFGSpins)
 	}
-	fmt.Printf("免費遊戲再觸發次數                    : %d（再觸發率 %.6f）\n", total.retriggerCount, retriRate)
+	fmt.Printf("免費遊戲再觸發次數                     : %d（再觸發率 %.6f）\n", total.retriggerCount, retriRate)
 
 	if total.triggerCount > 0 {
-		fmt.Printf("每次免費遊戲平均場次（5轉為一場起始）: %.3f\n", float64(total.totalFGSpins)/float64(total.triggerCount))
+		fmt.Printf("每次免費遊戲平均場次                   : %.3f\n", float64(total.totalFGSpins)/float64(total.triggerCount))
 	}
 
-	// 命中與大獎頻率
+	// FG 5 轉批次全空
+	if total.fgTotalBatches > 0 {
+		fmt.Printf("FG 5轉批次完全無贏分                   : %d / %d (占比 %.6f)\n",
+			total.fgZeroBatches, total.fgTotalBatches,
+			float64(total.fgZeroBatches)/float64(total.fgTotalBatches))
+	} else {
+		fmt.Printf("FG 5轉批次完全無贏分                   : 0 / 0 (占比 0)\n")
+	}
+
 	fmt.Printf("主遊戲 dead spins（無線獎且未觸發FG）: %d (占比 %.6f)\n", total.deadSpins, float64(total.deadSpins)/float64(numSpins))
+
+	fmt.Printf("\n獎項分佈\n")
 	fmt.Printf("Big  Win  (≥20×bet)                   : %d %s\n", total.bigWins, everyStr(numSpins, total.bigWins))
 	fmt.Printf("Mega Win  (≥60×bet)                   : %d %s\n", total.megaWins, everyStr(numSpins, total.megaWins))
 	fmt.Printf("Super Win (≥100×bet)                  : %d %s\n", total.superWins, everyStr(numSpins, total.superWins))
@@ -605,13 +635,11 @@ func main() {
 	fmt.Printf("Jumbo Win (≥500×bet)                  : %d %s\n", total.jumboWins, everyStr(numSpins, total.jumboWins))
 	fmt.Printf("Jojo Win  (≥1000×bet)                 : %d %s\n", total.jojoWins, everyStr(numSpins, total.jojoWins))
 
-	// FG 5 轉批次全空
-	if total.fgTotalBatches > 0 {
-		fmt.Printf("FG 5轉批次『完全無贏分』             : %d / %d (占比 %.6f)\n",
-			total.fgZeroBatches, total.fgTotalBatches,
-			float64(total.fgZeroBatches)/float64(total.fgTotalBatches))
-	} else {
-		fmt.Printf("FG 5轉批次『完全無贏分』             : 0 / 0 (占比 0)\n")
+	fmt.Printf("\n≥1000倍大獎項細分（互斥）\n")
+	for i, edge := range highBinEdges {
+		cnt := total.hiWinBins[i]
+		fmt.Printf("≥%-5d×bet    : %d %s\n",
+			int(edge), cnt, everyStr(numSpins, cnt))
 	}
 
 	// 統計推論（以 per-spin RTP 為隨機變數）
@@ -631,13 +659,13 @@ func main() {
 	fmt.Printf("樣本均值 mean(RTP)                    : %.6f\n", mean)
 	fmt.Printf("樣本方差 var(RTP)                     : %.6f\n", variance)
 	fmt.Printf("標準誤差 SE                           : %.6f\n", se)
-	fmt.Printf("95%% 信賴區間                         : [%.6f, %.6f]\n", lo, hi)
+	fmt.Printf("95%% 信賴區間                          : [%.6f, %.6f]\n", lo, hi)
 
 	if excelRTP >= 0 {
 		z := (excelRTP - mean) / se
 		inCI := (excelRTP >= lo && excelRTP <= hi)
 		fmt.Printf("Excel RTP                             : %.6f\n", excelRTP)
-		fmt.Printf("Excel 與樣本均值差的 z 分數           : %.2f\n", z)
+		fmt.Printf("Excel 與樣本均值差的 z 分數            : %.2f\n", z)
 		if inCI {
 			fmt.Printf("結論：Excel 值落在本次 95%% CI 之內（可視為誤差內）。\n")
 		} else {
