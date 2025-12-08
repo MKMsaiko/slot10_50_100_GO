@@ -30,11 +30,11 @@
 </p>
 
 <p align="center">
-  <img src="image/10_50_100Win.png" width="300" alt="模擬輸出截圖">
+  <img src="image/10_50_100Win.png" width="330" alt="模擬輸出截圖">
   <br><sub>大獎詳細分層</sub>
 </p>
 
 <p align="center">
-  <img src="image/10_50_100Stat.png"  width="400" alt="模擬輸出截圖">
+  <img src="image/10_50_100Stat.png"  width="450" alt="模擬輸出截圖">
   <br><sub>與Excel試算之結果驗證</sub>
 </p>
